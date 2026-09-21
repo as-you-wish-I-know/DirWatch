@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=DirWatch
+GenericName=Directory Log Watcher
+Comment=Watch a directory and open a live tail view per new or appended log file
+Exec=dirwatch %f
+Icon=dirwatch
+Terminal=false
+Categories=System;Monitor;
+Keywords=log;tail;watch;monitor;directory;
+StartupNotify=true

@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# retest - the user's Linux one-liner. Keep this at the PROJECT ROOT, OUTSIDE test/ (so the wipe never
+# eats it). It wipes test/, extracts the NEWEST DirWatch build zip into it, and runs runtests.sh -
+# satisfying test-plan item 1 (wipe / extract / run) in one command:
+#
+#     bash retest
+#
+# It picks the newest DirWatch_iced_*.zip in this directory. Override by passing a zip path:
+#     bash retest /path/to/DirWatch_iced_20260908.i28.zip
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+cd "$ROOT"
+ZIP="${1:-$(ls -1t DirWatch_iced_*.zip 2>/dev/null | head -1)}"
+[ -n "$ZIP" ] && [ -f "$ZIP" ] || { echo "retest: no build zip found (looked for DirWatch_iced_*.zip in $ROOT)"; exit 1; }
+echo "retest: using $ZIP"
+rm -rf test && mkdir test
+unzip -q "$ZIP" -d test
+cd test
+bash runtests.sh

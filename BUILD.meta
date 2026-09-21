@@ -1,0 +1,5 @@
+BUILD_ID=DirWatch 1.0 build 2026-09-20.i61
+KIND=feature
+SYMPTOM=none
+ATTEMPT=0
+EVIDENCE=none (UX feature from three-platform functional testing on .i60: a "jump to bottom & resume following" chip the user asked for; not a fix of a measured defect)

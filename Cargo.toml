@@ -1,0 +1,20 @@
+# DirWatch — workspace root (cross-platform iced port; see PORT-PLAN-crossplatform.md and DECISIONS.md).
+#
+# Layout:
+#   crates/dirwatch-core  — platform-agnostic core (glob/encoding/tail/watch/session/schedule/cli/
+#                           license/build_info). Builds and unit-tests on ANY host, incl. the Linux
+#                           dev session. This is what is verifiable off-hardware.
+#   crates/dirwatch       — the iced GUI + entrypoint binary: one codebase for Windows, macOS, and
+#                           Linux (NWG retired at R56). Only `FlashWindowEx` is cfg(windows).
+[workspace]
+resolver = "2"
+members = ["crates/dirwatch-core", "crates/dirwatch"]
+
+# Release profile tuned for the hard requirements (PORT-PLAN §Why): small binary, no runtime.
+# opt-level "z" + LTO + strip + panic=abort + one codegen unit => smallest self-contained exe.
+[profile.release]
+opt-level = "z"     # optimize for size (the whole point of the port)
+lto = true          # link-time optimization across crates
+codegen-units = 1   # better cross-module optimization, smaller output
+panic = "abort"     # no unwinding machinery => smaller binary, no landing pads
+strip = true        # strip symbols from the final exe

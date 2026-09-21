@@ -1,0 +1,132 @@
+[package]
+name = "dirwatch"
+version = "1.0.0"
+edition = "2021"
+description = "DirWatch — watches a directory and opens a live tail view per new/appended file."
+license = "MIT"
+
+[[bin]]
+name = "dirwatch"
+path = "src/main.rs"
+
+# ---------------------------------------------------------------------------------------------------
+# Linux native-package metadata (1.0 packaging, DECISIONS R168). Consumed by `cargo deb`
+# (cargo-deb) and `cargo generate-rpm` (cargo-generate-rpm); runtests.sh drives both. The AppImage is
+# assembled by runtests.sh directly (appimagetool over an AppDir), NOT from these blocks. All three
+# shapes install the SAME payload: the release binary at /usr/bin/dirwatch, the desktop entry, and the
+# hicolor icon set — the FHS layout a Linux desktop expects so the app shows up in the menu with its
+# icon (PORT-PLAN §7 Linux native packages). Assets live in ../../packaging/linux (paths are relative
+# to THIS manifest's dir per cargo-deb/generate-rpm).
+#
+# DEPENDENCIES: the binary is a single self-contained ELF; its only NON-base runtime needs are the
+# graphics/display stack a GUI must dlopen at runtime (libGL/EGL, X11/Wayland client libs, the desktop
+# portal for the Browse dialog). Those are present on any desktop and pulled in transitively, so we do
+# NOT hard-Depends on a specific GL/X package (that would wrongly refuse to install on a Wayland-only
+# or differently-packaged box); `ldd` at the gate documents the exact base set the build links.
+
+[package.metadata.deb]
+maintainer = "DirWatch <dirwatch@localhost>"
+copyright = "2026, DirWatch. MIT licensed."
+extended-description = "DirWatch watches a directory and opens a live, read-only tail view per new or appended .log/.txt (or glob-matched) file. Single self-contained binary; logs to the per-user XDG state directory."
+section = "utils"
+priority = "optional"
+assets = [
+    ["../../target/release/dirwatch", "usr/bin/", "755"],
+    ["../../packaging/linux/dirwatch.desktop", "usr/share/applications/", "644"],
+    ["../../packaging/linux/icons/dirwatch.svg", "usr/share/icons/hicolor/scalable/apps/dirwatch.svg", "644"],
+    ["../../packaging/linux/icons/dirwatch-16.png", "usr/share/icons/hicolor/16x16/apps/dirwatch.png", "644"],
+    ["../../packaging/linux/icons/dirwatch-24.png", "usr/share/icons/hicolor/24x24/apps/dirwatch.png", "644"],
+    ["../../packaging/linux/icons/dirwatch-32.png", "usr/share/icons/hicolor/32x32/apps/dirwatch.png", "644"],
+    ["../../packaging/linux/icons/dirwatch-48.png", "usr/share/icons/hicolor/48x48/apps/dirwatch.png", "644"],
+    ["../../packaging/linux/icons/dirwatch-64.png", "usr/share/icons/hicolor/64x64/apps/dirwatch.png", "644"],
+    ["../../packaging/linux/icons/dirwatch-128.png", "usr/share/icons/hicolor/128x128/apps/dirwatch.png", "644"],
+    ["../../packaging/linux/icons/dirwatch-256.png", "usr/share/icons/hicolor/256x256/apps/dirwatch.png", "644"],
+    ["../../packaging/linux/icons/dirwatch-512.png", "usr/share/icons/hicolor/512x512/apps/dirwatch.png", "644"],
+    ["../../LICENSE", "usr/share/doc/dirwatch/copyright", "644"],
+]
+
+[package.metadata.generate-rpm]
+summary = "Watch a directory and open a live tail view per new/appended file"
+assets = [
+    { source = "../../target/release/dirwatch", dest = "/usr/bin/dirwatch", mode = "755" },
+    { source = "../../packaging/linux/dirwatch.desktop", dest = "/usr/share/applications/dirwatch.desktop", mode = "644" },
+    { source = "../../packaging/linux/icons/dirwatch.svg", dest = "/usr/share/icons/hicolor/scalable/apps/dirwatch.svg", mode = "644" },
+    { source = "../../packaging/linux/icons/dirwatch-16.png", dest = "/usr/share/icons/hicolor/16x16/apps/dirwatch.png", mode = "644" },
+    { source = "../../packaging/linux/icons/dirwatch-24.png", dest = "/usr/share/icons/hicolor/24x24/apps/dirwatch.png", mode = "644" },
+    { source = "../../packaging/linux/icons/dirwatch-32.png", dest = "/usr/share/icons/hicolor/32x32/apps/dirwatch.png", mode = "644" },
+    { source = "../../packaging/linux/icons/dirwatch-48.png", dest = "/usr/share/icons/hicolor/48x48/apps/dirwatch.png", mode = "644" },
+    { source = "../../packaging/linux/icons/dirwatch-64.png", dest = "/usr/share/icons/hicolor/64x64/apps/dirwatch.png", mode = "644" },
+    { source = "../../packaging/linux/icons/dirwatch-128.png", dest = "/usr/share/icons/hicolor/128x128/apps/dirwatch.png", mode = "644" },
+    { source = "../../packaging/linux/icons/dirwatch-256.png", dest = "/usr/share/icons/hicolor/256x256/apps/dirwatch.png", mode = "644" },
+    { source = "../../packaging/linux/icons/dirwatch-512.png", dest = "/usr/share/icons/hicolor/512x512/apps/dirwatch.png", mode = "644" },
+    { source = "../../LICENSE", dest = "/usr/share/doc/dirwatch/copyright", mode = "644" },
+]
+
+[package.metadata.generate-rpm.requires]
+# No hard requires: the base graphics/display libraries a GUI dlopens at runtime are present on any
+# desktop and resolved transitively; pinning a specific GL/X provider would wrongly block install on
+# valid desktops (see the DEPENDENCIES note above). `ldd` at the gate is the recorded evidence.
+
+[dependencies]
+dirwatch-core = { path = "../dirwatch-core" }
+
+# GUI: iced 0.14 (retained-mode, Elm-style). CROSS-PLATFORM — the same GUI code builds and runs on
+# Windows, macOS, and Linux (PORT-PLAN-crossplatform §3). This REPLACES native-windows-gui, which
+# was retired at the port (DECISIONS R56): NWG and all its Win32 machinery (subclassing, manifest,
+# .rc, console-attach, PrintWindow harness) are gone, so the crate no longer has any `cfg(windows)`
+# GUI branch. iced pulls a windowing/renderer stack (winit + wgpu/tiny-skia), so it is a bigger
+# dependency graph than NWG's thin Win32 wrapper — the accepted cost of one portable GUI (§3).
+#
+# Features:
+#   smol — enables `iced::time::every`, the periodic-tick subscription that drains the watch
+#          channel on the GUI thread. `every` lives behind an async backend (tokio OR smol); smol
+#          is the lighter of the two and needs no extra runtime setup, so it is the minimal choice
+#          that makes the tick subscription available. All other default features are kept.
+iced = { version = "0.14", features = ["smol"] }
+
+# notify: the standard cross-platform FS-watch crate (inotify/FSEvents/kqueue/ReadDirectoryChangesW).
+# It only SCHEDULES debounced sweeps; `WatchService::sweep` remains the sole state authority
+# (DECISIONS R8/entry 10). Paired with the periodic poll so network-share events missed by the OS
+# watcher are still caught (the poll is never dropped — BACKLOG §2 item 4). Now un-gated: the watch
+# runtime is portable, so it links on all three OSes (previously it was cfg(windows) only).
+notify = "6"
+
+# rfd: native file-dialog crate (Rusty File Dialog). Powers the "Browse..." button's OS folder
+# picker on all three platforms — there is no stdlib folder chooser and hand-rolling per-OS dialogs
+# (IFileDialog / NSOpenPanel / xdg-portal) is exactly the kind of platform-specific work this port
+# exists to avoid. Justified new dependency (DECISIONS R63, minimal-deps rule). On Windows it calls
+# the native Win32 dialog; on Linux the default `xdg-portal` backend uses the desktop portal over
+# D-Bus (NO GTK runtime pulled). `pick_folder()` is the sync API used from `update`.
+rfd = "0.17"
+
+# WINDOWS SUBSYSTEM + CLI OUTPUT (DECISIONS R90/R91): main.rs carries
+# `#![cfg_attr(windows, windows_subsystem = "windows")]` so the exe is GUI-subsystem — no console
+# window ever (no "DOS box", no flash) and it never holds the terminal. R90 (.i25) paired that with a
+# `setup_console()` AttachConsole attach for the CLI paths, but hardware proved a GUI-subsystem binary
+# CANNOT print reliably to cmd.exe (the shell doesn't wait for it — Microsoft Terminal spec #7335).
+# So R91 (.i26) REMOVED that attach entirely and routes Windows CLI text to an iced WINDOW
+# (`cli_window.rs`) instead of the console — no console FFI at all. That is why the Console / FileSystem
+# / Security features are gone from the `windows` crate below again (only the FlashWindowEx set remains).
+
+# windows: official Microsoft Win32 bindings — WINDOWS-ONLY (cfg-gated below), pulled for ONE call:
+# `FlashWindowEx` (auto-open taskbar flash, DECISIONS R77). Justified by the .i15 hardware evidence
+# (R76): iced/winit's `window::request_user_attention` is a silent no-op on the user's Windows build —
+# it fired against the realized window and did nothing — so the OS-level taskbar flash has to be
+# called directly. This is the FIRST cfg(windows) code back in the port (R56 deleted the NWG Win32
+# body); it is deliberately CONTAINED to one FFI call behind `#[cfg(windows)]`, NOT a return of the
+# NWG machinery. the user approved the dependency (2026-07-27). Non-Windows keeps `request_user_attention`
+# (which works on macOS/X11), so the Mac/Linux GUI never links this crate.
+[target.'cfg(windows)'.dependencies]
+# Pulled for ONE contained auto-open effect on the realized tail window (DECISIONS R77):
+#   - FlashWindowEx (taskbar flash) + FLASHWINFO — under Win32_UI_WindowsAndMessaging; HWND under
+#     Win32_Foundation.
+# HISTORY (features removed as their code came out): the .i20 ladder's Win32_UI_Input_KeyboardAndMouse
+# went at R84; the .i25 AttachConsole Console/Storage_FileSystem/Security went at R91; and at .i30 the
+# raise-to-front matrix was productionized to winit's OWN `gain_focus` (raise winner V1, DECISIONS
+# R101) — no Win32 raise at all — so Win32_System_Threading (AttachThreadInput/GetCurrentThreadId) and
+# the SetForegroundWindow/BringWindowToTop/SetWindowPos/Z-order symbols are gone with it. Only the
+# FlashWindowEx set remains. Still WINDOWS-ONLY; the Mac/Linux GUI never links this crate.
+windows = { version = "0.62", features = [
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Foundation",
+] }

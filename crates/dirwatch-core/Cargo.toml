@@ -1,0 +1,32 @@
+[package]
+name = "dirwatch-core"
+version = "1.0.0"
+edition = "2021"
+description = "DirWatch core: platform-agnostic glob/encoding/tail/watch/session/CLI logic."
+license = "MIT"
+
+# Dependencies — each justified at the point its module was ported (DECISIONS R4):
+#   encoding_rs — UTF-16 LE/BE detection + stateful decoding (encoding + tail modules). The
+#                 standard Rust encoding crate; pure Rust, statically linked, no C runtime.
+#                 Its incremental Decoder replaces the .NET stateful `Decoder` so a multi-byte
+#                 char split across polls survives (regression `multibyte_char_split_across_polls`).
+#
+# GlobMatcher uses NO dependency (DECISIONS R7): the C# glob semantics (*→.*, ?→., escape the
+# rest, anchored, case-insensitive) are simple enough for a std-only matcher — chose that over a
+# regex/globset crate per the minimal-deps rule.
+#
+# NOT here yet, on purpose (DECISIONS R8): `notify` (the FS-watch crate). The core's tested
+# surface is the sweep, which is the AUTHORITY. notify/ReadDirectoryChangesW is only a SCHEDULING
+# layer that debounces and triggers sweeps — it belongs with the runtime event loop wired
+# alongside the GUI, not the pure core. Declaring it now would ship an unused dependency and
+# bloat the standalone exe for no code. It lands (justified) when the scheduling layer is built.
+#
+# All deps statically link into the single self-contained exe (no sidecar DLLs) — hard req (3).
+[dependencies]
+encoding_rs = "0.8"
+
+[dev-dependencies]
+# filetime — TEST ONLY. The watch tests force a distinct, increasing mtime per write so the
+# sweep's (length, mtime) diff is deterministic on coarse-resolution filesystems — the exact
+# analogue of the .NET tests' File.SetLastWriteTimeUtc. Dev-only: never linked into the exe.
+filetime = "0.2"
