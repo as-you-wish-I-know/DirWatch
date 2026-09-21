@@ -1,0 +1,8 @@
+# Cargo build configuration.
+#
+# WINDOWS: static C runtime — the MSVC target links the C runtime (vcruntime140.dll / the UCRT)
+# dynamically by default, so a clean Windows box without the VC++ redistributable could fail to
+# launch the exe. +crt-static bakes the CRT into dirwatch.exe so it is fully self-contained.
+# Windows-target-scoped, so it never affects the macOS/Linux builds.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
